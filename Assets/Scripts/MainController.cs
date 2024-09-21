@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -5,15 +6,15 @@ using UnityEngine.UI;
 using UnityEngine.UIElements;
 using UnityEngine.VFX;
 using static Assets.Scripts.Tool;
-using static UnityEditor.Experimental.AssetDatabaseExperimental.AssetDatabaseCounters;
 
 namespace Assets.Scripts
 {
-    public class PlayController : MonoBehaviour
+    public class MainController : MonoBehaviour
     {
         //public VFXManifest vfxListAsset;
         public Text _count;
         public Text _effectname;
+        public Transform UICanava;
         [HideInInspector]
         public Transform effects_CachePoolRoot;
         public BoxCollider simulateRange;
@@ -28,7 +29,9 @@ namespace Assets.Scripts
         private bool isBeginPlay = false;  //特效是否开始播放
         [Range(1, 10)]
         public int effectRunTime = 3;
+        public bool enableCollect = false;
         private float beginTime = 0f;
+        Canvas ui_canvas;
         public bool useCache
         {
             get { return _useCache; }
@@ -45,7 +48,7 @@ namespace Assets.Scripts
         // Start is called before the first frame update
         void Start()
         {
-
+            ui_canvas = UICanava.GetComponent<Canvas>();
         }
 
         // Update is called once per frame
@@ -53,7 +56,7 @@ namespace Assets.Scripts
         {
             if(loop)
                 DoLoopPlay();
-            if (isBeginPlay) 
+            if (isBeginPlay)
             {
                 beginTime += Time.deltaTime;
                 if(beginTime > effectRunTime)
@@ -92,6 +95,7 @@ namespace Assets.Scripts
                     vfx.Stop();
                 }
             }
+            ui_canvas.gameObject.SetActive(true);
         }
 
         public void Refresh(int count = 0)
@@ -233,10 +237,16 @@ namespace Assets.Scripts
             _runningCounts = count;
         }
 
-        public void Play()
+        IEnumerator RunEffect()
         {
+            Debug.Log("Simulate will be start after 5 seconds...");
+            yield return new WaitForSeconds(5.0f);
+            if (enableCollect)
+            {
+                DataCollecter._instance.BeginCollect();
+            }
             if (!ChangeCurrentEffect())
-                return;
+                yield return null;
             if (_runningCounts > 0)
                 RestartPlay();
             else
@@ -264,8 +274,21 @@ namespace Assets.Scripts
                         }
                     }
                     _runningCounts = counts;
-                    isBeginPlay=true;
+                    isBeginPlay = true;
                 }
+            }
+        }
+
+        public void Play()
+        {
+            try
+            {
+                ui_canvas.gameObject.SetActive(false);
+                StartCoroutine(RunEffect());
+            }
+            catch(Exception ex)
+            {
+                Debug.LogException(ex); 
             }
         }
 

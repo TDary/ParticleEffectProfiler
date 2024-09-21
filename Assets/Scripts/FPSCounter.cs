@@ -33,5 +33,10 @@ namespace Assets.Scripts
         {
             _deltaTime += (Time.unscaledDeltaTime - _deltaTime) * 0.1f;
         }
+
+        public void StopFps()
+        {
+            StopCoroutine(UpdateFPS());
+        }
     }
 }
