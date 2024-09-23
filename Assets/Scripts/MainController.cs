@@ -1,11 +1,14 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Drawing;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.UIElements;
 using UnityEngine.VFX;
 using static Assets.Scripts.Tool;
+using static UnityEditor.Experimental.AssetDatabaseExperimental.AssetDatabaseCounters;
+using static UnityEngine.ParticleSystem;
 
 namespace Assets.Scripts
 {
@@ -22,28 +25,16 @@ namespace Assets.Scripts
         private int _runningCounts = 0;
         private Coroutine _restartCoroutine;
         private List<GameObject> _runnningEffects = new List<GameObject>();
-        private GameObjectCachePool<int> _effectCachPool;
+        private Dictionary<int, ParticleSystem> _runningParticles = new Dictionary<int, ParticleSystem>();
+        private Dictionary<int, VisualEffect> _runningVfx = new Dictionary<int, VisualEffect>();
         private GameObject _currentEffectobj;
-        private bool _useCache = true;   //默认使用缓存     
         public bool loop = false; //特效是否循环播放
         private bool isBeginPlay = false;  //特效是否开始播放
-        [Range(1, 10)]
+        [Range(1, 20)]
         public int effectRunTime = 3;
         public bool enableCollect = false;
         private float beginTime = 0f;
         Canvas ui_canvas;
-        public bool useCache
-        {
-            get { return _useCache; }
-            set
-            {
-                if (_useCache != value)
-                {
-                    ClearCache();
-                    _useCache = value;
-                }
-            }
-        }
 
         // Start is called before the first frame update
         void Start()
@@ -54,12 +45,12 @@ namespace Assets.Scripts
         // Update is called once per frame
         void Update()
         {
-            if(loop)
+            if (loop)
                 DoLoopPlay();
             if (isBeginPlay)
             {
                 beginTime += Time.deltaTime;
-                if(beginTime > effectRunTime)
+                if (beginTime > effectRunTime)
                 {
                     DoStopPlay();
                     beginTime = 0f;
@@ -67,44 +58,20 @@ namespace Assets.Scripts
                 }
             }
         }
-        void DoLoopPlay()
+
+        public GameObject FindGameObj(string prefabName)
         {
-            foreach (GameObject prefab in _runnningEffects)
+            if (_effectmanifest != null)
             {
-                var allparticles = prefab.GetComponentsInChildren<ParticleSystem>();
-                foreach (var particle in allparticles)
+                foreach (var effect in _effectmanifest.effectList)
                 {
-                    if(!particle.isPlaying)
-                        particle.Play();
+                    if (effect.prefab.gameObject.name.Equals(prefabName))
+                    {
+                        return effect.prefab;
+                    }
                 }
             }
-        }
-
-        void DoStopPlay()
-        {
-            foreach (GameObject prefab in _runnningEffects)
-            {
-                var allparticles = prefab.GetComponentsInChildren<ParticleSystem>();
-                var allvfxs = prefab.GetComponentsInChildren<VisualEffect>();
-                foreach (var particle in allparticles)
-                {
-                    particle.Stop();
-                }
-                foreach (var vfx in allvfxs)
-                {
-                    vfx.Stop();
-                }
-            }
-            ui_canvas.gameObject.SetActive(true);
-        }
-
-        public void Refresh(int count = 0)
-        {
-            if(_effectCachPool!=null)
-                _effectCachPool.Destroy();
-
-            _effectCachPool = new GameObjectCachePool<int>(effects_CachePoolRoot);
-            ChangeVFXCount(count);
+            return null;
         }
 
         bool ChangeCurrentEffect(string infoName = "")
@@ -160,6 +127,28 @@ namespace Assets.Scripts
             }
         }
 
+        void SpawnOne(GameObject obj)
+        {
+            GameObject vfx = Instantiate(obj);
+            if (!vfx)
+            {
+                vfx = Instantiate(obj);
+                vfx.SetActive(true);
+            }
+
+            if (EffectSimulateRange.instance != null)
+                EffectSimulateRange.instance.RandomInRange(vfx.transform);
+            else
+            {
+                Vector3 outPos;
+                Quaternion outRot;
+                EffectSimulateRange.instance.RandomInBox(simulateRange.center, Quaternion.identity, simulateRange.size, false, out outPos, out outRot);
+                vfx.transform.SetParent(simulateRange.transform, false);
+                vfx.transform.localPosition = outPos;
+                vfx.transform.localRotation = outRot;
+            }
+        }
+
         GameObject SpawnOne()
         {
             if (_currentEffectobj == null)
@@ -188,72 +177,13 @@ namespace Assets.Scripts
             return vfx;
         }
 
-        public void ChangeVFXCount(int count)
+        public void ChangeVFXCount(int count, GameObject changeObj)
         {
-            if (_count)
-                _count.text = count.ToString();
-
             if (count > _runningCounts)
             {
-                for (int i = _runningCounts; i < count; ++i)
+                if (changeObj != null && changeObj.gameObject.name == _currentEffectobj.gameObject.name)
                 {
-                    GameObject vfx;
-                    if (i >= _runnningEffects.Count)
-                    {
-                        vfx = SpawnOne();
-                        _runnningEffects.Add(vfx);
-                    }
-                    else
-                    {
-                        vfx = _runnningEffects[i];
-                        if (!vfx)
-                        {
-                            vfx = SpawnOne();
-                            _runnningEffects[i] = vfx;
-                        }
-                        else
-                            vfx.SetActive(true);
-                    }
-                }
-                isBeginPlay = true;
-            }
-            else if (count < _runningCounts)
-            {
-                for (int i = count; i < _runningCounts; ++i)
-                {
-                    var vfx = _runnningEffects[i];
-                    if (vfx)
-                    {
-                        if (_useCache)
-                            vfx.SetActive(false);
-                        else
-                        {
-                            Destroy(vfx);
-                            _runnningEffects[i] = null;
-                        }
-                    }
-                }
-            }
-            _runningCounts = count;
-        }
-
-        IEnumerator RunEffect()
-        {
-            Debug.Log("Simulate will be start after 5 seconds...");
-            yield return new WaitForSeconds(5.0f);
-            if (enableCollect)
-            {
-                DataCollecter._instance.BeginCollect();
-            }
-            if (!ChangeCurrentEffect())
-                yield return null;
-            if (_runningCounts > 0)
-                RestartPlay();
-            else
-            {
-                if (int.TryParse(_count.text, out int counts))
-                {
-                    for (int i = _runningCounts; i < counts; ++i)
+                    for (int i = _runningCounts; i < count; ++i)
                     {
                         GameObject vfx;
                         if (i >= _runnningEffects.Count)
@@ -273,10 +203,222 @@ namespace Assets.Scripts
                                 vfx.SetActive(true);
                         }
                     }
-                    _runningCounts = counts;
+                    _runningCounts = count;
+                    isBeginPlay = true;
+                }
+                else if (changeObj != null && changeObj.gameObject.name != _currentEffectobj.gameObject.name)
+                {
+                    //先清除一下缓存
+                    ClearCache();
+                    //重新进行实例化
+                    for (int i = 0; i < count; ++i)
+                    {
+                        SpawnOne(changeObj);
+                        _runnningEffects.Add(changeObj);
+                        CacheEffectComponent(changeObj);
+                    }
+                    PlayRemain();
+                    _runningCounts = count;
+                    isBeginPlay = true;
+                }
+                else
+                    Debug.LogError("传入的GameObject为空");
+            }
+            else if (count < _runningCounts)
+            {
+                if (changeObj == null)
+                {
+                    ClearCache();
+                    _currentEffectobj = null;
+                    _runningCounts = 0;
+                }
+                else if (changeObj.gameObject.name == _currentEffectobj.gameObject.name)
+                {
+                    for (int i = count; i < _runningCounts; ++i)
+                    {
+                        var vfx = _runnningEffects[i];
+                        if (vfx)
+                        {
+                            Destroy(vfx);
+                            _runnningEffects[i] = null;
+                        }
+                    }
+                    PlayRemain();
+                    _runningCounts = count;
+                    isBeginPlay = true;
+                }
+                else
+                {
+                    //先清除一下缓存
+                    ClearCache();
+                    //重新进行实例化
+                    for (int i = 0; i < count; ++i)
+                    {
+                        SpawnOne(changeObj);
+                        _runnningEffects.Add(changeObj);
+                        CacheEffectComponent(changeObj);
+                    }
+                    _runningCounts = count;
                     isBeginPlay = true;
                 }
             }
+            else
+            {
+                if (changeObj == null )
+                {
+                    ClearCache();
+                    _currentEffectobj = null;
+                    _runningCounts = 0;
+                }
+                else if(changeObj.gameObject.name == _currentEffectobj.gameObject.name)
+                {
+                    RestartPlay();
+                    isBeginPlay = true;
+                }
+                else
+                {
+                    //先清除一下缓存
+                    ClearCache();
+                    //重新进行实例化
+                    for (int i = 0; i < count; ++i)
+                    {
+                        SpawnOne(changeObj);
+                        _runnningEffects.Add(changeObj);
+                        CacheEffectComponent(changeObj);
+                    }
+                    _runningCounts = count;
+                    isBeginPlay = true;
+                }
+            }
+        }
+
+        #region 播放设置
+        IEnumerator RunEffect()
+        {
+            Debug.Log("Simulate will be start after 5 seconds...");
+            yield return new WaitForSeconds(5.0f);
+            int counts = 0;
+            if (int.TryParse(_count.text, out counts))
+            {
+                if (counts > 0)
+                {
+                    if (enableCollect)
+                    {
+                        DataCollecter._instance.BeginCollect();
+                    }
+                    if (_currentEffectobj == null)
+                    {
+                        if (ChangeCurrentEffect())
+                        {
+                            for (int i = _runningCounts; i < counts; ++i)
+                            {
+                                GameObject vfx;
+                                if (i >= _runnningEffects.Count)
+                                {
+                                    vfx = SpawnOne();
+                                    _runnningEffects.Add(vfx);
+                                }
+                                else
+                                {
+                                    vfx = _runnningEffects[i];
+                                    if (!vfx)
+                                    {
+                                        vfx = SpawnOne();
+                                        _runnningEffects[i] = vfx;
+                                    }
+                                    else
+                                        vfx.SetActive(true);
+                                }
+                                CacheEffectComponent(vfx);
+                            }
+                            _runningCounts = counts;
+                            isBeginPlay = true;
+                        }
+                        else
+                        {
+                            ui_canvas.gameObject.SetActive(true);
+                            Debug.LogError("输入EffectName无效");
+                        }
+                    }
+                    else
+                    {
+                        ChangeVFXCount(counts, FindGameObj(_effectname.text));
+                    }
+                }
+                else if (counts == 0)
+                {
+                    if (_currentEffectobj == null)
+                    {
+                        Debug.Log("未开始播放特效");
+                        ui_canvas.gameObject.SetActive(true);
+                    }
+                    else
+                    {
+                        DoStopPlay();
+                        ClearCache();  //清除特效
+                        _runningCounts = counts;
+                    }
+                }
+                else
+                {
+                    ui_canvas.gameObject.SetActive(true);
+                    Debug.LogError("实例数不能小于0");
+                }
+            }
+            else
+            {
+                ui_canvas.gameObject.SetActive(true);
+                Debug.LogError("实例数不能为非整形类型");
+            }
+            yield return null;
+        }
+
+        void PlayRemain()
+        {
+            foreach(var particle in _runningParticles.Keys)
+            {
+                if (_runningParticles[particle] != null)
+                    _runningParticles[particle].Play();
+                else
+                    _runningParticles.Remove(particle);
+            }
+            foreach(var vfx in _runningVfx.Keys)
+            {
+                if (_runningParticles[vfx] != null)
+                    _runningParticles[vfx].Play();
+                else
+                    _runningParticles.Remove(vfx);
+            }
+        }
+
+        /// <summary>
+        /// 循环播放
+        /// </summary>
+        void DoLoopPlay()
+        {
+            foreach (var particle in _runningParticles.Values)
+            {
+                if (!particle.isPlaying)
+                    particle.Play();
+            }
+        }
+
+        /// <summary>
+        /// 停止播放
+        /// </summary>
+        void DoStopPlay()
+        {
+            foreach (var particle in _runningParticles.Values)
+            {
+                if (particle != null&&!particle.isPlaying)
+                    particle.Stop();
+            }
+            foreach (var vfx in _runningVfx.Values)
+            {
+                if(vfx != null)
+                    vfx.Stop();
+            }
+            ui_canvas.gameObject.SetActive(true);
         }
 
         public void Play()
@@ -286,36 +428,81 @@ namespace Assets.Scripts
                 ui_canvas.gameObject.SetActive(false);
                 StartCoroutine(RunEffect());
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
-                Debug.LogException(ex); 
+                Debug.LogException(ex);
             }
         }
 
         public void RestartPlay()
         {
-            StopAllCoroutines();
+            if (_restartCoroutine != null)
+                StopCoroutine(_restartCoroutine);
             _restartCoroutine = StartCoroutine(DoRestartPlay());
         }
 
         IEnumerator DoRestartPlay()
         {
-            for (int i = 0; i < _runningCounts; ++i)
+            foreach (var item in _runningParticles.Values)
             {
-                var vfx = _runnningEffects[i];
-                if (vfx)
+                if(!item.isPlaying)
+                    item.Play();
+            }
+            foreach(var vfx in _runningVfx.Values)
+            {
+                vfx.Play();
+            }
+            yield return null;
+        }
+
+        #endregion
+        #region 缓存
+        void CacheEffectComponent(GameObject prefab)
+        {
+            var allparticles = prefab.GetComponentsInChildren<ParticleSystem>();
+            var allvfxs = prefab.GetComponentsInChildren<VisualEffect>();
+            foreach (var particle in allparticles)
+            {
+                if (!_runningParticles.TryGetValue(particle.GetInstanceID(), out ParticleSystem val))
                 {
-                    vfx.SetActive(false);
-                    yield return null;
-                    vfx.SetActive(true);
+                    _runningParticles.Add(particle.GetInstanceID(), particle);
                 }
             }
-            _restartCoroutine = null;
+            foreach (var vfx in allvfxs)
+            {
+                if (!_runningVfx.TryGetValue(vfx.GetInstanceID(), out VisualEffect val))
+                {
+                    _runningVfx.Add(vfx.GetInstanceID(), vfx);
+                }
+            }
+        }
+
+        void CacheEffectComponentByAll(List<GameObject> allEffects)
+        {
+            foreach (GameObject effect in allEffects)
+            {
+                var allparticles = effect.GetComponentsInChildren<ParticleSystem>();
+                var allvfxs = effect.GetComponentsInChildren<VisualEffect>();
+                foreach (var particle in allparticles)
+                {
+                    if (!_runningParticles.TryGetValue(particle.GetInstanceID(), out ParticleSystem val))
+                    {
+                        _runningParticles.Add(particle.GetInstanceID(), particle);
+                    }
+                }
+                foreach (var vfx in allvfxs)
+                {
+                    if (!_runningVfx.TryGetValue(vfx.GetInstanceID(), out VisualEffect val))
+                    {
+                        _runningVfx.Add(vfx.GetInstanceID(), vfx);
+                    }
+                }
+            }
         }
 
         public void ClearCache()
         {
-            for (int i = _runningCounts; i < _runnningEffects.Count; ++i)
+            for (int i = 0; i < _runnningEffects.Count; ++i)
             {
                 var vfx = _runnningEffects[i];
                 if (vfx)
@@ -324,8 +511,9 @@ namespace Assets.Scripts
                     _runnningEffects[i] = null;
                 }
             }
-            _effectCachPool.Clear();
+            _runningParticles.Clear();
+            _runningVfx.Clear();
         }
-
+        #endregion
     }
 }
