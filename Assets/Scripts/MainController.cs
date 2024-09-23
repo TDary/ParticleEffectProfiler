@@ -22,12 +22,14 @@ namespace Assets.Scripts
         public Transform effects_CachePoolRoot;
         public BoxCollider simulateRange;
         public EffectManifest _effectmanifest;
-        private int _runningCounts = 0;
+        [HideInInspector]
+        public int _runningCounts = 0;
         private Coroutine _restartCoroutine;
         private List<GameObject> _runnningEffects = new List<GameObject>();
         private Dictionary<int, ParticleSystem> _runningParticles = new Dictionary<int, ParticleSystem>();
         private Dictionary<int, VisualEffect> _runningVfx = new Dictionary<int, VisualEffect>();
-        private GameObject _currentEffectobj;
+        [HideInInspector]
+        public GameObject _currentEffectobj;
         public bool loop = false; //特效是否循环播放
         private bool isBeginPlay = false;  //特效是否开始播放
         [Range(1, 20)]
