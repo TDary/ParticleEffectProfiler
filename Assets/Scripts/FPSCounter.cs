@@ -6,6 +6,7 @@ namespace Assets.Scripts
 {
     public class FPSCounter : MonoBehaviour
     {
+        public bool switchFps = false;
         private float _deltaTime = 0.0f;
         private int _fps = 0;
         private float updateInterval = 0.5f; // 更新间隔（毫秒）
@@ -14,8 +15,11 @@ namespace Assets.Scripts
 
         private void Start()
         {
-            fpsView = GameObject.Find("FPS_Counter").GetComponent<Text>();
-            StartCoroutine(UpdateFPS());
+            if (switchFps)
+            {
+                fpsView = GameObject.Find("FPS_Counter").GetComponent<Text>();
+                StartCoroutine(UpdateFPS());
+            }
         }
 
         private IEnumerator UpdateFPS()

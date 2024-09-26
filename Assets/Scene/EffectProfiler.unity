@@ -658,7 +658,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 367769683}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 1923834629}
+        m_TargetAssemblyTypeName: Assets.Scripts.DataCollecter, Assembly-CSharp
+        m_MethodName: OutputData
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &367769683
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -944,6 +956,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4a76266a9a8b4b148a7c38dcfac19e45, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  switchFps: 0
 --- !u!1 &1402959836
 GameObject:
   m_ObjectHideFlags: 0
@@ -1434,6 +1447,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d69753beeead0dd40b2fed5709fface8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _mainController: {fileID: 2054680281}
+  isBeginCollect: 0
+  isEndCollect: 0
 --- !u!1 &1938041687
 GameObject:
   m_ObjectHideFlags: 0
@@ -1680,11 +1696,13 @@ MonoBehaviour:
   _effectname: {fileID: 1948548668}
   UICanava: {fileID: 1838440543}
   effects_CachePoolRoot: {fileID: 1923834626}
-  simulateRange: {fileID: 0}
+  simulateRange: {fileID: 1923834627}
   _effectmanifest: {fileID: 2054680283}
+  _runningCounts: 0
+  _currentEffectobj: {fileID: 0}
   loop: 0
   effectRunTime: 5
-  enableCollect: 0
+  enableCollect: 1
 --- !u!4 &2054680282
 Transform:
   m_ObjectHideFlags: 0

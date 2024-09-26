@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.UIElements;
@@ -37,11 +38,12 @@ namespace Assets.Scripts
         public bool enableCollect = false;
         private float beginTime = 0f;
         Canvas ui_canvas;
-
+        DataCollecter _dataCollecter;
         // Start is called before the first frame update
         void Start()
         {
             ui_canvas = UICanava.GetComponent<Canvas>();
+            _dataCollecter = GameObject.Find("EffectsProfiler").GetComponent<DataCollecter>();
         }
 
         // Update is called once per frame
@@ -294,9 +296,20 @@ namespace Assets.Scripts
             }
         }
 
+        public void SetGameViewMaximized(bool value)
+        {
+            Type gameViewType = typeof(EditorWindow).Assembly.GetType("UnityEditor.GameView");
+            EditorWindow window = EditorWindow.GetWindow(gameViewType);
+            if (window != null)
+                window.maximized = value;
+        }
+
         #region 播放设置
         IEnumerator RunEffect()
         {
+#if UNITY_EDITOR
+            SetGameViewMaximized(true);
+#endif
             Debug.Log("Simulate will be start after 5 seconds...");
             yield return new WaitForSeconds(5.0f);
             int counts = 0;
@@ -306,7 +319,7 @@ namespace Assets.Scripts
                 {
                     if (enableCollect)
                     {
-                        DataCollecter._instance.BeginCollect();
+                        _dataCollecter.BeginCollect();
                     }
                     if (_currentEffectobj == null)
                     {
@@ -339,6 +352,9 @@ namespace Assets.Scripts
                         else
                         {
                             ui_canvas.gameObject.SetActive(true);
+#if UNITY_EDITOR
+                            SetGameViewMaximized(false);
+#endif
                             Debug.LogError("输入EffectName无效");
                         }
                     }
@@ -353,6 +369,9 @@ namespace Assets.Scripts
                     {
                         Debug.Log("未开始播放特效");
                         ui_canvas.gameObject.SetActive(true);
+#if UNITY_EDITOR
+                        SetGameViewMaximized(false);
+#endif
                     }
                     else
                     {
@@ -364,12 +383,18 @@ namespace Assets.Scripts
                 else
                 {
                     ui_canvas.gameObject.SetActive(true);
+#if UNITY_EDITOR
+                    SetGameViewMaximized(false);
+#endif
                     Debug.LogError("实例数不能小于0");
                 }
             }
             else
             {
                 ui_canvas.gameObject.SetActive(true);
+#if UNITY_EDITOR
+                SetGameViewMaximized(false);
+#endif
                 Debug.LogError("实例数不能为非整形类型");
             }
             yield return null;
@@ -420,7 +445,12 @@ namespace Assets.Scripts
                 if(vfx != null)
                     vfx.Stop();
             }
+            if(enableCollect)
+                _dataCollecter.StopCollect();
             ui_canvas.gameObject.SetActive(true);
+#if UNITY_EDITOR
+            SetGameViewMaximized(false);
+#endif
         }
 
         public void Play()
