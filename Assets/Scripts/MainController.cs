@@ -27,7 +27,8 @@ namespace Assets.Scripts
         public int _runningCounts = 0;
         private Coroutine _restartCoroutine;
         private List<GameObject> _runnningEffects = new List<GameObject>();
-        private Dictionary<int, ParticleSystem> _runningParticles = new Dictionary<int, ParticleSystem>();
+        [HideInInspector]
+        public Dictionary<int, ParticleSystem> _runningParticles = new Dictionary<int, ParticleSystem>();
         private Dictionary<int, VisualEffect> _runningVfx = new Dictionary<int, VisualEffect>();
         [HideInInspector]
         public GameObject _currentEffectobj;

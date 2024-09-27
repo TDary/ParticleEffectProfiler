@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
@@ -19,19 +20,16 @@ namespace Assets.Scripts
     {
         public MainController _mainController;
         [HideInInspector]
-        public bool isBeginCollect = false;
+        public bool isBeginCollect = false;   //开始采集信号
         [HideInInspector]
-        public bool isEndCollect = false;
-        private bool isAutoCollect = false;
+        public bool isEndCollect = false;   //结束采集信号
+        private bool isAutoCollect = false;   //自动采集
         ProfilerRecorder drawCallsRecorder;
         ProfilerRecorder setPassCallsRecorder;
         ProfilerRecorder verticesRecorder;
         class DetailData
         {
             public List<int> collectedFps = new List<int>();
-            public List<float> SelfMemorys = new List<float>();
-            public List<float> ResourceMemorys = new List<float>();
-            public List<float> ShaderMemorys = new List<float>();
             public List<long> DrawCalls = new List<long>();
             public List<long> SetPassCalls = new List<long>();
             public List<int> OverDraws = new List<int>();
@@ -54,9 +52,6 @@ namespace Assets.Scripts
         }
         struct DetailCount
         {
-            public float maxSelfMemory;
-            public float maxResourceMemory;
-            public float maxShaderMemory;
             public float frameTImetp90;
             public int fpsTp90;
             public long maxVertex;
@@ -68,7 +63,10 @@ namespace Assets.Scripts
         #endregion
         SimpleCount sc_Data;
         DetailCount dc_Data;
-
+        List<string> allResultData = new List<string>(100);
+        float _deltaTime;
+        [HideInInspector]
+        public bool _segmentStoring = false;   //分段存储结果数据
         private void OnEnable()
         {
             setPassCallsRecorder = ProfilerRecorder.StartNew(ProfilerCategory.Render, "SetPass Calls Count");
@@ -82,15 +80,15 @@ namespace Assets.Scripts
             drawCallsRecorder.Dispose();
             verticesRecorder.Dispose();
         }
+
         //private void Start()
         //{
-
         //}
 
-        //private void Update()
-        //{
-
-        //}
+        private void Update()
+        {
+            _deltaTime += (Time.unscaledDeltaTime - _deltaTime) * 0.1f;
+        }
 
         public void BeginCollect()
         {
@@ -144,10 +142,14 @@ namespace Assets.Scripts
                     long setpasscalls = setPassCallsRecorder.CurrentValue - 1;  //摄像机Call去掉
                     long vertexs = verticesRecorder.CurrentValue - 4;  //空场景顶点
                     float frameTime = Time.unscaledDeltaTime;
+                    int particleCount = GetRealTimeParticles();//获取实时粒子数
+                    int fps = (int)(1.0f / _deltaTime);
                     data.DrawCalls.Add(drawcalls);
                     data.SetPassCalls.Add(setpasscalls);
                     data.VertexCount.Add(vertexs);
                     data.FrameTimes.Add(frameTime);
+                    data.ParticlesCount.Add(particleCount);
+                    data.collectedFps.Add(fps);
                 }
                 else
                 {
@@ -159,19 +161,27 @@ namespace Assets.Scripts
             yield return null;
         }
 
+
+        int GetRealTimeParticles()
+        {
+            int m_ParticleCount = 0;
+            foreach (var ps in _mainController._runningParticles.Values)
+            {
+                m_ParticleCount += ps.particleCount;
+            }
+            return m_ParticleCount;
+        }
+
         #region 获取数据
         private void GetDetailData()
         {
-            //float maxSelfMemory = GetMaxFloatValue(data.SelfMemorys);
-            //float maxResourceMemory = GetMaxFloatValue(data.ResourceMemorys);
-            //float maxShaderMemory = GetMaxFloatValue(data.ShaderMemorys);
             float frameTImetp90 = GetTop90ForFloat(data.FrameTimes);
-            //int fpsTp90 = GetTop90ForInt(data.collectedFps);
+            int fpsTp90 = GetTop90ForInt(data.collectedFps);
             long maxVertex = GetMaxLongValue(data.VertexCount);
             long maxDrawCall = GetMaxLongValue(data.DrawCalls);
             long maxSetPassCall = GetMaxLongValue(data.SetPassCalls);
             //int maxOverDraw = GetMaxIntValue(data.OverDraws);
-            //int maxParticles = GetMaxIntValue(data.ParticlesCount);
+            int maxParticles = GetMaxIntValue(data.ParticlesCount);
             dc_Data.maxDrawCall = maxDrawCall;
             dc_Data.frameTImetp90 = frameTImetp90;
             dc_Data.maxSetPassCall = maxSetPassCall;
@@ -247,20 +257,48 @@ namespace Assets.Scripts
             sc_Data.Prefab_instanceCount = _mainController._runningCounts;
         }
 
-        public void OutputData()
+        public void OutputData(string filepath="")
         {
-            //todo:WriteFile
+            string result = $"{_mainController._currentEffectobj.name},{dc_Data.frameTImetp90},{dc_Data.maxDrawCall}," +
+                        $"{dc_Data.maxSetPassCall},{dc_Data.maxVertex},{sc_Data.ShadowsCount},{sc_Data.MaterialsCount},{sc_Data.ShadersCount}," +
+                        $"{sc_Data.TransformCount},{sc_Data.CollidersCount},{sc_Data.AnimatorsCount},{sc_Data.AnimatorNull},{sc_Data.Prefab_instanceCount}";
+            allResultData.Add(result);
+            if (string.IsNullOrEmpty(filepath))
+            {
+                filepath = Path.Combine(Application.persistentDataPath, $"EffectPerformance_{DateTime.Now.ToString("hh_mm_ss")}.csv");
+            }
+            if (_segmentStoring)
+            {
+                if (allResultData.Count == 100)
+                {
+                    //写入数据至存储文件
+                    WriteToFile(allResultData, filepath);
+                    //清空
+                    allResultData.Clear();
+                }
+            }
+            else
+            {
+                //写入数据至存储文件
+                WriteToFile(allResultData, filepath);
+                //清空
+                allResultData.Clear();
+            }
+        }
+
+        void WriteToFile(List<string> datas,string filepath)
+        {
             try
             {
-                string writeFilepath = "D:/Test.csv";
-                using (var sw = new StreamWriter(new FileStream(writeFilepath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite), new System.Text.UTF8Encoding(true)))
+                using (var sw = new StreamWriter(new FileStream(filepath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite), new System.Text.UTF8Encoding(true)))
                 {
                     sw.WriteLine("PrefabName,FrameTimeTp90,MaxDrawCall,MaxSetPassCall,MaxVertex,ShadowsCount,MaterialsCount,ShadersCount," +
                         "TransformCount,CollidersCount,AnimatorsCount,AnimatorNullCount,Prefab_instanceCount");
                     sw.Flush();
-                    sw.WriteLine($"{_mainController._currentEffectobj.name},{dc_Data.frameTImetp90},{dc_Data.maxDrawCall}," +
-                        $"{dc_Data.maxSetPassCall},{dc_Data.maxVertex},{sc_Data.ShadowsCount},{sc_Data.MaterialsCount},{sc_Data.ShadersCount}," +
-                        $"{sc_Data.TransformCount},{sc_Data.CollidersCount},{sc_Data.AnimatorsCount},{sc_Data.AnimatorNull},{sc_Data.Prefab_instanceCount}");
+                    foreach (var data in datas)
+                    {
+                        sw.WriteLine(data);
+                    }
                 }
             }
             catch (Exception e)
@@ -284,9 +322,6 @@ namespace Assets.Scripts
 
         public void InitDetailData()
         {
-            dc_Data.maxSelfMemory = 0;
-            dc_Data.maxResourceMemory = 0;
-            dc_Data.maxShaderMemory = 0;
             dc_Data.frameTImetp90 = 0;
             dc_Data.fpsTp90 = 0;
             dc_Data.maxVertex = 0;
@@ -300,9 +335,6 @@ namespace Assets.Scripts
         {
             data.collectedFps.Clear();
             data.collectedFps.Clear();
-            data.SelfMemorys.Clear();
-            data.ResourceMemorys.Clear();
-            data.ShaderMemorys.Clear();
             data.DrawCalls.Clear();
             data.SetPassCalls.Clear();
             data.OverDraws.Clear();
