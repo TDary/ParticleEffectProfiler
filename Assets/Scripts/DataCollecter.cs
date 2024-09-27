@@ -23,7 +23,8 @@ namespace Assets.Scripts
         public bool isBeginCollect = false;   //开始采集信号
         [HideInInspector]
         public bool isEndCollect = false;   //结束采集信号
-        private bool isAutoCollect = false;   //自动采集
+        bool isAutoCollect = false;   //自动采集
+        bool isAutoEnd = false;  //自动采集结束
         ProfilerRecorder drawCallsRecorder;
         ProfilerRecorder setPassCallsRecorder;
         ProfilerRecorder verticesRecorder;
@@ -273,7 +274,7 @@ namespace Assets.Scripts
             }
             if (_segmentStoring)
             {
-                if (allResultData.Count == 100)
+                if (allResultData.Count == 100 || isAutoEnd)
                 {
                     //写入数据至存储文件
                     WriteToFile(allResultData, filepath);
