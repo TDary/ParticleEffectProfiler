@@ -36,6 +36,7 @@ public class EffectEvla
         }
 
         singleEffectEvla = new SingleEffectEvla(1);
+        singleEffectEvla._effectEvla_data = new EffectEvlaData();
     }
 
     public void SetCamera(Camera camera)
@@ -53,6 +54,16 @@ public class EffectEvla
     public EffectEvlaData[] GetEffectEvlaData()
     {
         return singleEffectEvla.GetEffectEvlaDatas();
+    }
+
+    public int UpdateGetOverDraw()
+    {
+        time += Time.deltaTime;
+        int pixTotal = 0;
+        int pixActualDraw = 0;
+
+        GetCameraOverDrawData(out pixTotal, out pixActualDraw);
+        return singleEffectEvla.UpdateOverDrawData(pixTotal, pixActualDraw);
     }
 
     #region overdraw

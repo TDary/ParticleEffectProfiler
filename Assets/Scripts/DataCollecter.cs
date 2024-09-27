@@ -27,6 +27,7 @@ namespace Assets.Scripts
         ProfilerRecorder drawCallsRecorder;
         ProfilerRecorder setPassCallsRecorder;
         ProfilerRecorder verticesRecorder;
+        EffectEvla m_EffectEvla;
         class DetailData
         {
             public List<int> collectedFps = new List<int>();
@@ -81,10 +82,6 @@ namespace Assets.Scripts
             verticesRecorder.Dispose();
         }
 
-        //private void Start()
-        //{
-        //}
-
         private void Update()
         {
             _deltaTime += (Time.unscaledDeltaTime - _deltaTime) * 0.1f;
@@ -115,6 +112,8 @@ namespace Assets.Scripts
             }
             else
                 InitDetailData();
+            if(m_EffectEvla == null)
+                m_EffectEvla = new EffectEvla(Camera.main);
             StartCoroutine(CollcetData());
         }
 
@@ -150,6 +149,9 @@ namespace Assets.Scripts
                     data.FrameTimes.Add(frameTime);
                     data.ParticlesCount.Add(particleCount);
                     data.collectedFps.Add(fps);
+                    int overdraw = m_EffectEvla.UpdateGetOverDraw();
+                    if(overdraw > 0)
+                        data.OverDraws.Add(overdraw);
                 }
                 else
                 {
@@ -160,7 +162,6 @@ namespace Assets.Scripts
             }
             yield return null;
         }
-
 
         int GetRealTimeParticles()
         {
@@ -180,12 +181,15 @@ namespace Assets.Scripts
             long maxVertex = GetMaxLongValue(data.VertexCount);
             long maxDrawCall = GetMaxLongValue(data.DrawCalls);
             long maxSetPassCall = GetMaxLongValue(data.SetPassCalls);
-            //int maxOverDraw = GetMaxIntValue(data.OverDraws);
+            int maxOverDraw = GetMaxIntValue(data.OverDraws);
             int maxParticles = GetMaxIntValue(data.ParticlesCount);
             dc_Data.maxDrawCall = maxDrawCall;
             dc_Data.frameTImetp90 = frameTImetp90;
             dc_Data.maxSetPassCall = maxSetPassCall;
             dc_Data.maxVertex = maxVertex;
+            dc_Data.maxOverDraw = maxOverDraw;
+            dc_Data.maxParticles = maxParticles;
+            dc_Data.fpsTp90 = fpsTp90;
         }
 
         float GetMaxFloatValue(List<float> alldata)
@@ -259,7 +263,7 @@ namespace Assets.Scripts
 
         public void OutputData(string filepath="")
         {
-            string result = $"{_mainController._currentEffectobj.name},{dc_Data.frameTImetp90},{dc_Data.maxDrawCall}," +
+            string result = $"{_mainController._currentEffectobj.name},{dc_Data.fpsTp90},{dc_Data.frameTImetp90},{dc_Data.maxParticles},{dc_Data.maxOverDraw},{dc_Data.maxDrawCall}," +
                         $"{dc_Data.maxSetPassCall},{dc_Data.maxVertex},{sc_Data.ShadowsCount},{sc_Data.MaterialsCount},{sc_Data.ShadersCount}," +
                         $"{sc_Data.TransformCount},{sc_Data.CollidersCount},{sc_Data.AnimatorsCount},{sc_Data.AnimatorNull},{sc_Data.Prefab_instanceCount}";
             allResultData.Add(result);
@@ -292,7 +296,7 @@ namespace Assets.Scripts
             {
                 using (var sw = new StreamWriter(new FileStream(filepath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite), new System.Text.UTF8Encoding(true)))
                 {
-                    sw.WriteLine("PrefabName,FrameTimeTp90,MaxDrawCall,MaxSetPassCall,MaxVertex,ShadowsCount,MaterialsCount,ShadersCount," +
+                    sw.WriteLine("PrefabName,FPS TP90,FrameTimeTp90,MaxParticleCount,MaxOverDraw,MaxDrawCall,MaxSetPassCall,MaxVertex,ShadowsCount,MaterialsCount,ShadersCount," +
                         "TransformCount,CollidersCount,AnimatorsCount,AnimatorNullCount,Prefab_instanceCount");
                     sw.Flush();
                     foreach (var data in datas)

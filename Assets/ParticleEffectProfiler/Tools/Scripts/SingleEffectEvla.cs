@@ -12,7 +12,8 @@ public class SingleEffectEvla {
     private int _qualityIndex = 0;
     public GameObject _effectObj;
     public static string[] Qualitys = { "High", "Middle", "Low" };
-    
+    public EffectEvlaData _effectEvla_data;
+
     public SingleEffectEvla(int qualityIndex)
     {
         _effectEvlaData = new EffectEvlaData[Qualitys.Length];
@@ -23,6 +24,18 @@ public class SingleEffectEvla {
         }
 
         ChangeQuality(qualityIndex);
+    }
+
+    public int UpdateOverDrawData(int pixDraw, int pixActualDraw)
+    {
+        if (pixDraw <= 0 && pixActualDraw <= 0)
+        {
+            return -1;
+        }
+        _effectEvla_data.pixTotal = _effectEvla_data.pixTotal + pixDraw;
+        _effectEvla_data.pixActualDrawTotal = _effectEvla_data.pixActualDrawTotal + pixActualDraw;
+        _effectEvla_data.pixDrawTimes = _effectEvla_data.pixDrawTimes + 1;
+        return _effectEvla_data.GetPixRate();
     }
 
     public void UpdateOneData(int pixDraw, int pixActualDraw)
