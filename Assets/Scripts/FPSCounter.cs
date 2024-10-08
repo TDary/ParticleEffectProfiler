@@ -16,9 +16,9 @@ namespace Assets.Scripts
 
         private void Start()
         {
-            Application.targetFrameRate = targetFrameRate;
             if (switchFps)
             {
+                Application.targetFrameRate = targetFrameRate;
                 fpsView = GameObject.Find("FPS_Counter").GetComponent<Text>();
                 StartCoroutine(UpdateFPS());
             }
@@ -26,6 +26,7 @@ namespace Assets.Scripts
 
         private IEnumerator UpdateFPS()
         {
+            switchFps = true;
             while (true)
             {
                 yield return new WaitForSeconds(updateInterval); // 将毫秒转换为秒
@@ -37,12 +38,26 @@ namespace Assets.Scripts
 
         private void Update()
         {
-            _deltaTime += (Time.unscaledDeltaTime - _deltaTime) * 0.1f;
+            if (switchFps)
+                _deltaTime += (Time.unscaledDeltaTime - _deltaTime) * 0.1f;
         }
 
         public void StopFps()
         {
             StopCoroutine(UpdateFPS());
+            switchFps = false;
+        }
+
+        public void StartFps()
+        {
+            if (switchFps)
+            {
+                Debug.Log("已启用FPS");
+                return;
+            }
+            Application.targetFrameRate = targetFrameRate;
+            fpsView = GameObject.Find("FPS_Counter").GetComponent<Text>();
+            StartCoroutine(UpdateFPS());
         }
     }
 }
