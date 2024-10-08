@@ -2,17 +2,8 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
-using System.Xml.Linq;
 using Unity.Profiling;
-using UnityEditor;
-using UnityEditor.Profiling;
-using UnityEditorInternal;
 using UnityEngine;
-using UnityEngine.Profiling;
 
 namespace Assets.Scripts
 {
@@ -28,7 +19,9 @@ namespace Assets.Scripts
         ProfilerRecorder drawCallsRecorder;
         ProfilerRecorder setPassCallsRecorder;
         ProfilerRecorder verticesRecorder;
+#if UNITY_EDITOR
         EffectEvla m_EffectEvla;
+#endif
         class DetailData
         {
             public List<int> collectedFps = new List<int>();
@@ -36,7 +29,6 @@ namespace Assets.Scripts
             public List<long> SetPassCalls = new List<long>();
             public List<int> OverDraws = new List<int>();
             public List<int> ParticlesCount = new List<int>();
-            public List<float> FrameTimes = new List<float>();
             public List<long> VertexCount = new List<long>();
         }
         DetailData data;
@@ -54,7 +46,6 @@ namespace Assets.Scripts
         }
         struct DetailCount
         {
-            public float frameTImetp90;
             public int fpsTp90;
             public long maxVertex;
             public long maxDrawCall;
@@ -113,8 +104,10 @@ namespace Assets.Scripts
             }
             else
                 InitDetailData();
-            if(m_EffectEvla == null)
+#if UNITY_EDITOR
+            if (m_EffectEvla == null)
                 m_EffectEvla = new EffectEvla(Camera.main);
+#endif
             StartCoroutine(CollcetData());
         }
 
@@ -141,18 +134,18 @@ namespace Assets.Scripts
                     long drawcalls = drawCallsRecorder.CurrentValue - 1;  //摄像机Call去掉
                     long setpasscalls = setPassCallsRecorder.CurrentValue - 1;  //摄像机Call去掉
                     long vertexs = verticesRecorder.CurrentValue - 4;  //空场景顶点
-                    float frameTime = Time.unscaledDeltaTime;
                     int particleCount = GetRealTimeParticles();//获取实时粒子数
                     int fps = (int)(1.0f / _deltaTime);
                     data.DrawCalls.Add(drawcalls);
                     data.SetPassCalls.Add(setpasscalls);
                     data.VertexCount.Add(vertexs);
-                    data.FrameTimes.Add(frameTime);
                     data.ParticlesCount.Add(particleCount);
                     data.collectedFps.Add(fps);
+#if UNITY_EDITOR
                     int overdraw = m_EffectEvla.UpdateGetOverDraw();
                     if(overdraw > 0)
                         data.OverDraws.Add(overdraw);
+#endif
                 }
                 else
                 {
@@ -177,18 +170,18 @@ namespace Assets.Scripts
         #region 获取数据
         private void GetDetailData()
         {
-            float frameTImetp90 = GetTop90ForFloat(data.FrameTimes);
             int fpsTp90 = GetTop90ForInt(data.collectedFps);
             long maxVertex = GetMaxLongValue(data.VertexCount);
             long maxDrawCall = GetMaxLongValue(data.DrawCalls);
             long maxSetPassCall = GetMaxLongValue(data.SetPassCalls);
+#if UNITY_EDITOR
             int maxOverDraw = GetMaxIntValue(data.OverDraws);
+            dc_Data.maxOverDraw = maxOverDraw;
+#endif
             int maxParticles = GetMaxIntValue(data.ParticlesCount);
             dc_Data.maxDrawCall = maxDrawCall;
-            dc_Data.frameTImetp90 = frameTImetp90;
             dc_Data.maxSetPassCall = maxSetPassCall;
             dc_Data.maxVertex = maxVertex;
-            dc_Data.maxOverDraw = maxOverDraw;
             dc_Data.maxParticles = maxParticles;
             dc_Data.fpsTp90 = fpsTp90;
         }
@@ -264,7 +257,7 @@ namespace Assets.Scripts
 
         public void OutputData(string filepath="")
         {
-            string result = $"{_mainController._currentEffectobj.name},{dc_Data.fpsTp90},{dc_Data.frameTImetp90},{dc_Data.maxParticles},{dc_Data.maxOverDraw},{dc_Data.maxDrawCall}," +
+            string result = $"{_mainController._currentEffectobj.name},{dc_Data.fpsTp90},{dc_Data.maxParticles},{dc_Data.maxOverDraw},{dc_Data.maxDrawCall}," +
                         $"{dc_Data.maxSetPassCall},{dc_Data.maxVertex},{sc_Data.ShadowsCount},{sc_Data.MaterialsCount},{sc_Data.ShadersCount}," +
                         $"{sc_Data.TransformCount},{sc_Data.CollidersCount},{sc_Data.AnimatorsCount},{sc_Data.AnimatorNull},{sc_Data.Prefab_instanceCount}";
             allResultData.Add(result);
@@ -297,7 +290,7 @@ namespace Assets.Scripts
             {
                 using (var sw = new StreamWriter(new FileStream(filepath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite), new System.Text.UTF8Encoding(true)))
                 {
-                    sw.WriteLine("PrefabName,FPS TP90,FrameTimeTp90,MaxParticleCount,MaxOverDraw,MaxDrawCall,MaxSetPassCall,MaxVertex,ShadowsCount,MaterialsCount,ShadersCount," +
+                    sw.WriteLine("PrefabName,FPS TP90,MaxParticleCount,MaxOverDraw,MaxDrawCall,MaxSetPassCall,MaxVertex,ShadowsCount,MaterialsCount,ShadersCount," +
                         "TransformCount,CollidersCount,AnimatorsCount,AnimatorNullCount,Prefab_instanceCount");
                     sw.Flush();
                     foreach (var data in datas)
@@ -327,7 +320,6 @@ namespace Assets.Scripts
 
         public void InitDetailData()
         {
-            dc_Data.frameTImetp90 = 0;
             dc_Data.fpsTp90 = 0;
             dc_Data.maxVertex = 0;
             dc_Data.maxDrawCall = 0;
@@ -344,7 +336,6 @@ namespace Assets.Scripts
             data.SetPassCalls.Clear();
             data.OverDraws.Clear();
             data.ParticlesCount.Clear();
-            data.FrameTimes.Clear();
             data.VertexCount.Clear();
         }
         #endregion

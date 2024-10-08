@@ -1,15 +1,10 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Drawing;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.UIElements;
 using UnityEngine.VFX;
-using static Assets.Scripts.Tool;
-using static UnityEditor.Experimental.AssetDatabaseExperimental.AssetDatabaseCounters;
-using static UnityEngine.ParticleSystem;
 
 namespace Assets.Scripts
 {
@@ -132,7 +127,7 @@ namespace Assets.Scripts
             }
         }
 
-        void SpawnOne(GameObject obj)
+        GameObject SpawnOne(GameObject obj)
         {
             GameObject vfx = Instantiate(obj);
             if (!vfx)
@@ -152,6 +147,7 @@ namespace Assets.Scripts
                 vfx.transform.localPosition = outPos;
                 vfx.transform.localRotation = outRot;
             }
+            return vfx;
         }
 
         GameObject SpawnOne()
@@ -218,9 +214,9 @@ namespace Assets.Scripts
                     //重新进行实例化
                     for (int i = 0; i < count; ++i)
                     {
-                        SpawnOne(changeObj);
-                        _runnningEffects.Add(changeObj);
-                        CacheEffectComponent(changeObj);
+                        var vfx = SpawnOne(changeObj);
+                        _runnningEffects.Add(vfx);
+                        CacheEffectComponent(vfx);
                     }
                     PlayRemain();
                     _runningCounts = count;
@@ -259,9 +255,9 @@ namespace Assets.Scripts
                     //重新进行实例化
                     for (int i = 0; i < count; ++i)
                     {
-                        SpawnOne(changeObj);
-                        _runnningEffects.Add(changeObj);
-                        CacheEffectComponent(changeObj);
+                        var vfx = SpawnOne(changeObj);
+                        _runnningEffects.Add(vfx);
+                        CacheEffectComponent(vfx);
                     }
                     _runningCounts = count;
                     isBeginPlay = true;
@@ -287,9 +283,9 @@ namespace Assets.Scripts
                     //重新进行实例化
                     for (int i = 0; i < count; ++i)
                     {
-                        SpawnOne(changeObj);
-                        _runnningEffects.Add(changeObj);
-                        CacheEffectComponent(changeObj);
+                        var vfx = SpawnOne(changeObj);
+                        _runnningEffects.Add(vfx);
+                        CacheEffectComponent(vfx);
                     }
                     _runningCounts = count;
                     isBeginPlay = true;
@@ -297,6 +293,7 @@ namespace Assets.Scripts
             }
         }
 
+#if UNITY_EDITOR
         public void SetGameViewMaximized(bool value)
         {
             Type gameViewType = typeof(EditorWindow).Assembly.GetType("UnityEditor.GameView");
@@ -304,6 +301,7 @@ namespace Assets.Scripts
             if (window != null)
                 window.maximized = value;
         }
+#endif
 
         #region 播放设置
         IEnumerator RunEffect()
@@ -454,6 +452,9 @@ namespace Assets.Scripts
 #endif
         }
 
+        /// <summary>
+        /// 正常播放单特效入口
+        /// </summary>
         public void Play()
         {
             try
@@ -467,6 +468,9 @@ namespace Assets.Scripts
             }
         }
 
+        /// <summary>
+        /// 重播特效入口
+        /// </summary>
         public void RestartPlay()
         {
             if (_restartCoroutine != null)
@@ -474,6 +478,9 @@ namespace Assets.Scripts
             _restartCoroutine = StartCoroutine(DoRestartPlay());
         }
 
+        /// <summary>
+        /// 重播特效协程
+        /// </summary>
         IEnumerator DoRestartPlay()
         {
             foreach (var item in _runningParticles.Values)
