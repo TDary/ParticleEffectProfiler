@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Unity.Profiling;
 using UnityEngine;
 
@@ -17,12 +18,14 @@ namespace Assets.Scripts
         ProfilerRecorder drawCallsRecorder;
         ProfilerRecorder setPassCallsRecorder;
         ProfilerRecorder verticesRecorder;
+        FrameTiming[] timing;
 #if UNITY_EDITOR
         EffectEvla m_EffectEvla;
 #endif
         class DetailData
         {
             public List<int> collectedFps = new List<int>();
+            public List<double> collectedGpuTime = new List<double>();
             public List<long> DrawCalls = new List<long>();
             public List<long> SetPassCalls = new List<long>();
             public List<int> OverDraws = new List<int>();
@@ -45,6 +48,7 @@ namespace Assets.Scripts
         struct DetailCount
         {
             public int fpsTp90;
+            public double gpuTimeAvg;
             public long maxVertex;
             public long maxDrawCall;
             public long maxSetPassCall;
@@ -60,6 +64,8 @@ namespace Assets.Scripts
         List<string> allResultData = new List<string>(100);
         float _deltaTime;
         public bool _segmentStoring = false;   //分段存储结果数据
+        static StreamWriter sw;
+        string res_filepath;
         private void OnEnable()
         {
             setPassCallsRecorder = ProfilerRecorder.StartNew(ProfilerCategory.Render, "SetPass Calls Count");
@@ -78,12 +84,16 @@ namespace Assets.Scripts
             _deltaTime += (Time.unscaledDeltaTime - _deltaTime) * 0.1f;
         }
 
-        public void BeginCollect(Camera _camera)
+        public void BeginCollect(Camera _camera,string filepath = null)
         {
             isBeginCollect = true;
             isEndCollect = false;
             EndOneCollectData = false;
             //初始化
+            if (string.IsNullOrEmpty(filepath))
+                filepath = Path.Combine(Application.persistentDataPath, "_ParticleEffectData.csv");
+            res_filepath = filepath;
+            sw = new StreamWriter(new FileStream(res_filepath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite), new System.Text.UTF8Encoding(true));
             if (sc_Data.Equals(default(SimpleCount)))
             {
                 sc_Data = new SimpleCount();
@@ -95,8 +105,6 @@ namespace Assets.Scripts
             {
                 data = new DetailData();
             }
-            else
-                ClearDatailData();
             if (dc_Data.Equals(default(SimpleCount)))
             {
                 dc_Data = new DetailCount();
@@ -104,6 +112,8 @@ namespace Assets.Scripts
             }
             else
                 InitDetailData();
+            if (timing==null)
+                timing = new FrameTiming[1];
 #if UNITY_EDITOR
             if (m_EffectEvla == null)
                 m_EffectEvla = new EffectEvla(_camera);
@@ -115,6 +125,8 @@ namespace Assets.Scripts
         {
             isBeginCollect = false;
             isEndCollect = true;
+            ClearDatailData();
+            DisposeFileObject();
         }
 
         IEnumerator CollcetData()
@@ -137,11 +149,13 @@ namespace Assets.Scripts
                     long vertexs = verticesRecorder.CurrentValue - 4;  //空场景顶点
                     int particleCount = GetRealTimeParticles();//获取实时粒子数
                     int fps = (int)(1.0f / _deltaTime);
+                    FrameTimingManager.GetLatestTimings(1, timing);
                     data.DrawCalls.Add(drawcalls);
                     data.SetPassCalls.Add(setpasscalls);
                     data.VertexCount.Add(vertexs);
                     data.ParticlesCount.Add(particleCount);
                     data.collectedFps.Add(fps);
+                    data.collectedGpuTime.Add(timing[0].gpuFrameTime);
 #if UNITY_EDITOR
                     int overdraw = m_EffectEvla.UpdateGetOverDraw();
                     if(overdraw > 0)
@@ -213,6 +227,7 @@ namespace Assets.Scripts
         private void GetDetailData()
         {
             int fpsTp90 = GetTop90ForInt(data.collectedFps);
+            double avgGpuTime = GetAvgGpuTime(data.collectedGpuTime);
             long maxVertex = GetMaxLongValue(data.VertexCount);
             long maxDrawCall = GetMaxLongValue(data.DrawCalls);
             long maxSetPassCall = GetMaxLongValue(data.SetPassCalls);
@@ -232,6 +247,7 @@ namespace Assets.Scripts
             dc_Data.maxSetPassCall = maxSetPassCall;
             dc_Data.maxVertex = maxVertex;
             dc_Data.fpsTp90 = fpsTp90;
+            dc_Data.gpuTimeAvg = avgGpuTime;
             dc_Data.maxBoundSize = GetEffectBoundSize();
             //dc_Data.maxCameraDistance = _mainController._currentPrefabMaxDistance;
         }
@@ -252,6 +268,11 @@ namespace Assets.Scripts
         {
             alldata.Sort();
             return alldata[alldata.Count - 1];
+        }
+
+        double GetAvgGpuTime(List<double> alldata)
+        {
+            return alldata.Average();
         }
 
         int GetTop90ForInt(List<int> alldata)
@@ -326,7 +347,7 @@ namespace Assets.Scripts
                     if (allResultData.Count == 100 || isAutoEnd)
                     {
                         //写入数据至存储文件
-                        WriteToFile(allResultData, filepath);
+                        WriteToFile(allResultData);
                         //清空
                         allResultData.Clear();
                     }
@@ -334,7 +355,7 @@ namespace Assets.Scripts
                 else
                 {
                     //写入数据至存储文件
-                    WriteToFile(allResultData, filepath);
+                    WriteToFile(allResultData);
                     //清空
                     allResultData.Clear();
                 }
@@ -354,7 +375,7 @@ namespace Assets.Scripts
                 if (allResultData.Count == 100 || isAutoEnd)
                 {
                     //写入数据至存储文件
-                    WriteToFile(allResultData, filepath);
+                    WriteToFile(allResultData);
                     //清空
                     allResultData.Clear();
                 }
@@ -362,23 +383,20 @@ namespace Assets.Scripts
             else
             {
                 //写入数据至存储文件
-                WriteToFile(allResultData, filepath);
+                WriteToFile(allResultData);
                 //清空
                 allResultData.Clear();
             }
         }
 
-        void WriteToFile(List<string> datas, string filepath)
+        void WriteToFile(List<string> datas)
         {
             try
             {
-                using (var sw = new StreamWriter(new FileStream(filepath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite), new System.Text.UTF8Encoding(true)))
+                sw.WriteLine("PrefabName,FPS TP90,MaxParticleCount,MaxOverDraw,MaxDrawCall,MaxSetPassCall,MaxVertex,ShadowsCount,MaterialsCount,ShadersCount,TransformCount,CollidersCount,AnimatorsCount,AnimatorNullCount,MaxBoundSize,MaxCapacity,MaxULOD_Distance,Prefab_instanceCount");
+                foreach (var data in datas)
                 {
-                    sw.WriteLine("PrefabName,FPS TP90,MaxParticleCount,MaxOverDraw,MaxDrawCall,MaxSetPassCall,MaxVertex,ShadowsCount,MaterialsCount,ShadersCount,TransformCount,CollidersCount,AnimatorsCount,AnimatorNullCount,MaxBoundSize,MaxCapacity,MaxULOD_Distance,Prefab_instanceCount");
-                    foreach (var data in datas)
-                    {
-                        sw.WriteLine(data);
-                    }
+                    sw.WriteLine(data);
                 }
             }
             catch (Exception e)
@@ -403,6 +421,7 @@ namespace Assets.Scripts
         public void InitDetailData()
         {
             dc_Data.fpsTp90 = 0;
+            dc_Data.gpuTimeAvg = 0;
             dc_Data.maxVertex = 0;
             dc_Data.maxDrawCall = 0;
             dc_Data.maxSetPassCall = 0;
@@ -422,6 +441,14 @@ namespace Assets.Scripts
             data.OverDraws.Clear();
             data.ParticlesCount.Clear();
             data.VertexCount.Clear();
+        }
+
+        public void DisposeFileObject()
+        {
+            sw.Flush();
+            sw.Close();
+            sw.Dispose();
+            sw = null;
         }
         #endregion
     }
