@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using TMPro;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -12,8 +13,8 @@ namespace Assets.Scripts
 {
     public class MainController : MonoBehaviour
     {
-        public Text _count;
-        public Text _effectname;
+        public TMP_InputField _count;
+        public TMP_InputField _effectname;
         public Transform UICanava;
         public Camera _camera;
         [HideInInspector]
