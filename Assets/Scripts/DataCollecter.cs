@@ -91,9 +91,10 @@ namespace Assets.Scripts
             EndOneCollectData = false;
             //初始化
             if (string.IsNullOrEmpty(filepath))
-                filepath = Path.Combine(Application.persistentDataPath, "_ParticleEffectData.csv");
+                filepath = Path.Combine(Application.persistentDataPath, $"ParticleEffectData_{DateTime.Now.ToString("hh_mm_ss")}.csv");
             res_filepath = filepath;
-            sw = new StreamWriter(new FileStream(res_filepath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite), new System.Text.UTF8Encoding(true));
+            if (sw == null)
+                sw = new StreamWriter(new FileStream(res_filepath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite), new System.Text.UTF8Encoding(true));
             if (sc_Data.Equals(default(SimpleCount)))
             {
                 sc_Data = new SimpleCount();
@@ -125,8 +126,6 @@ namespace Assets.Scripts
         {
             isBeginCollect = false;
             isEndCollect = true;
-            ClearDatailData();
-            DisposeFileObject();
         }
 
         IEnumerator CollcetData()
@@ -139,6 +138,9 @@ namespace Assets.Scripts
                     GetSimpleCount();  //获取简单数据
                     GetDetailData();    //获取均值或最大值
                     OutputData();
+                    //清除数组
+                    ClearDatailData();
+                    DisposeFileObject();
                     break;
                 }
                 else if (isBeginCollect)
@@ -334,14 +336,10 @@ namespace Assets.Scripts
         /// 最后一个结束并输出结果数据
         /// </summary>
         /// <param name="filepath"></param>
-        public void TryEndOutPut(string filepath = "")
+        public void TryEndOutPut()
         {
             if (allResultData.Count != 0)
             {
-                if (string.IsNullOrEmpty(filepath))
-                {
-                    filepath = Path.Combine(Application.persistentDataPath, $"EffectPerformance_{DateTime.Now.ToString("hh_mm_ss")}.csv");
-                }
                 if (_segmentStoring)
                 {
                     if (allResultData.Count == 100 || isAutoEnd)
@@ -362,14 +360,10 @@ namespace Assets.Scripts
             }
         }
 
-        public void OutputData(string filepath = "")
+        public void OutputData()
         {
-            string result = $"{_mainController._currentEffectobj.name},{dc_Data.fpsTp90},{dc_Data.maxParticles},{dc_Data.maxOverDraw},{dc_Data.maxDrawCall},{dc_Data.maxSetPassCall},{dc_Data.maxVertex},{sc_Data.ShadowsCount},{sc_Data.MaterialsCount},{sc_Data.ShadersCount},{sc_Data.TransformCount},{sc_Data.CollidersCount},{sc_Data.AnimatorsCount},{sc_Data.AnimatorNull},{dc_Data.maxBoundSize.x}-{dc_Data.maxBoundSize.y}-{dc_Data.maxBoundSize.z},{dc_Data.maxCapacity},{dc_Data.maxCameraDistance},{sc_Data.Prefab_instanceCount}";
+            string result = $"{_mainController._currentEffectobj.name},{dc_Data.fpsTp90},{dc_Data.gpuTimeAvg},{dc_Data.maxParticles},{dc_Data.maxOverDraw},{dc_Data.maxDrawCall},{dc_Data.maxSetPassCall},{dc_Data.maxVertex},{sc_Data.ShadowsCount},{sc_Data.MaterialsCount},{sc_Data.ShadersCount},{sc_Data.TransformCount},{sc_Data.CollidersCount},{sc_Data.AnimatorsCount},{sc_Data.AnimatorNull},{dc_Data.maxBoundSize.x}-{dc_Data.maxBoundSize.y}-{dc_Data.maxBoundSize.z},{dc_Data.maxCapacity},{dc_Data.maxCameraDistance},{sc_Data.Prefab_instanceCount}";
             allResultData.Add(result);
-            if (string.IsNullOrEmpty(filepath))
-            {
-                filepath = Path.Combine(Application.persistentDataPath, $"EffectPerformance_{DateTime.Now.ToString("hh_mm_ss")}.csv");
-            }
             if (_segmentStoring)
             {
                 if (allResultData.Count == 100 || isAutoEnd)
@@ -393,7 +387,7 @@ namespace Assets.Scripts
         {
             try
             {
-                sw.WriteLine("PrefabName,FPS TP90,MaxParticleCount,MaxOverDraw,MaxDrawCall,MaxSetPassCall,MaxVertex,ShadowsCount,MaterialsCount,ShadersCount,TransformCount,CollidersCount,AnimatorsCount,AnimatorNullCount,MaxBoundSize,MaxCapacity,MaxULOD_Distance,Prefab_instanceCount");
+                sw.WriteLine("PrefabName,FPS TP90,GPUTime_Avg,MaxParticleCount,MaxOverDraw,MaxDrawCall,MaxSetPassCall,MaxVertex,ShadowsCount,MaterialsCount,ShadersCount,TransformCount,CollidersCount,AnimatorsCount,AnimatorNullCount,MaxBoundSize,MaxCapacity,MaxULOD_Distance,Prefab_instanceCount");
                 foreach (var data in datas)
                 {
                     sw.WriteLine(data);
