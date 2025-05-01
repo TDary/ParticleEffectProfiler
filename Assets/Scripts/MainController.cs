@@ -33,7 +33,8 @@ namespace Assets.Scripts
         [HideInInspector]
         public GameObject _currentEffectobj;
         public bool loop = false; //特效是否循环播放
-        private bool isBeginPlay = false;  //特效是否开始播放
+        bool isBeginPlay = false;  //特效是否开始播放
+        bool is_currentHasLineAndTrail=false;
         bool autoBeginOne = false;
         [Range(1, 20)]
         public int effectRunTime = 5;
@@ -41,7 +42,7 @@ namespace Assets.Scripts
         public bool enableCollect = false;
         //[Header("ULODLevel值")]
         //public ULODLevel ulod;
-        private float beginTime = 0f;
+        float beginTime = 0f;
         Canvas ui_canvas;
         DataCollecter _dataCollecter;
         Bounds _moveRange;
@@ -60,7 +61,7 @@ namespace Assets.Scripts
         {
             if (loop)
                 DoLoopPlay();
-            if (isBeginPlay)
+            if (isBeginPlay && isBeginPlay)
             {
                 beginTime += Time.deltaTime;
                 if (beginTime > effectRunTime)
@@ -71,48 +72,42 @@ namespace Assets.Scripts
                     autoBeginOne = false;
                 }
             }
-            if (moveSpeed != 0)
+            if (moveSpeed != 0 && isBeginPlay)
             {
-                var moveDist = _moveTargetPos - simulateRange.transform.position;
-                var moveDelta = moveSpeed * Time.deltaTime;
-                if (moveDelta * moveDelta > moveDist.sqrMagnitude)
+                //判断不存在粒子特效的时候，才去移动（有LineRender以及拖尾等）
+                if (is_currentHasLineAndTrail)
                 {
-                    _moveTargetPos = new Vector3(
-                    UnityEngine.Random.Range(_moveRange.min.x, _moveRange.max.x),
-                    UnityEngine.Random.Range(_moveRange.min.y, _moveRange.max.y),
-                    UnityEngine.Random.Range(_moveRange.min.z, _moveRange.max.z)
-                    );
-                    simulateRange.transform.position = _moveTargetPos;
+                    var moveDist = _moveTargetPos - simulateRange.transform.position;
+                    var moveDelta = moveSpeed * Time.deltaTime;
+                    if (moveDelta * moveDelta > moveDist.sqrMagnitude)
+                    {
+                        _moveTargetPos = new Vector3(
+                        UnityEngine.Random.Range(_moveRange.min.x, _moveRange.max.x),
+                        UnityEngine.Random.Range(_moveRange.min.y, _moveRange.max.y),
+                        UnityEngine.Random.Range(_moveRange.min.z, _moveRange.max.z)
+                        );
+                        simulateRange.transform.position = _moveTargetPos;
+                    }
+                    else
+                        simulateRange.transform.position += moveDist.normalized * moveDelta;
                 }
-                else
-                    simulateRange.transform.position += moveDist.normalized * moveDelta;
             }
         }
         #region 逻辑
         /// <summary>
-        /// 强切特效ULOD值
+        /// 是否有拖尾和线条特效
         /// </summary>
         /// <param name="prefab"></param>
-        //public void ModifyULODLevel(GameObject prefab)
-        //{
-        //    var compon = prefab.GetComponent<ULODGroup.Runtime.ULODGroup>();
-        //    _currentPrefabMaxDistance = compon.m_fMaxCameraDistance;
-        //    if (compon != null)
-        //    {
-        //        compon.enabled = true;
-        //        var ulodGrops = FindObjectsOfType<ULODGroup.Runtime.ULODGroup>(true);
-        //        foreach (var lodGroup in ulodGrops)
-        //        {
-        //            if (lodGroup == null)
-        //            {
-        //                continue;
-        //            }
-        //            var lods = lodGroup.GetLODs();
-        //            if (lods != null && lods.Length > 0)
-        //                lodGroup.SetMaxLODLevel(ulod);
-        //        }
-        //    }
-        //}
+        /// <returns></returns>
+        bool IsHasLineAndTrail(GameObject prefab)
+        {
+            var allLine = prefab.GetComponentsInChildren<LineRenderer>();
+            var allTrail = prefab.GetComponentsInChildren<TrailRenderer>();
+            if (allLine.Length != 0 || allTrail.Length != 0)
+                return true;
+            else
+                return false;
+        }
 
         public GameObject FindGameObj(string prefabName)
         {
@@ -193,7 +188,7 @@ namespace Assets.Scripts
                 vfx = Instantiate(obj);
                 vfx.SetActive(true);
             }
-            //ModifyULODLevel(vfx);  //强切ULOD
+            is_currentHasLineAndTrail = IsHasLineAndTrail(vfx);
             if (EffectSimulateRange.instance != null)
                 EffectSimulateRange.instance.RandomInRange(vfx.transform);
             else
@@ -220,8 +215,7 @@ namespace Assets.Scripts
                 vfx = Instantiate(_currentEffectobj);
                 vfx.SetActive(true);
             }
-
-            //ModifyULODLevel(vfx);  //强切ULOD
+            is_currentHasLineAndTrail = IsHasLineAndTrail(vfx);
 
             if (EffectSimulateRange.instance != null)
                 EffectSimulateRange.instance.RandomInRange(vfx.transform);
@@ -251,6 +245,7 @@ namespace Assets.Scripts
                         {
                             vfx = SpawnOne();
                             _runnningEffects.Add(vfx);
+                            CacheEffectComponent(vfx);
                         }
                         else
                         {
@@ -258,12 +253,14 @@ namespace Assets.Scripts
                             if (!vfx)
                             {
                                 vfx = SpawnOne();
+                                CacheEffectComponent(vfx);
                                 _runnningEffects[i] = vfx;
                             }
                             else
                                 vfx.SetActive(true);
                         }
                     }
+                    PlayRemain();
                     _runningCounts = count;
                     isBeginPlay = true;
                 }
@@ -296,13 +293,13 @@ namespace Assets.Scripts
                 }
                 else if (changeObj.gameObject.name == _currentEffectobj.gameObject.name)
                 {
-                    for (int i = count; i < _runningCounts; ++i)
+                    for (int i = _runnningEffects.Count - 1; i >= count; --i)
                     {
                         var vfx = _runnningEffects[i];
                         if (vfx)
                         {
-                            Destroy(vfx);
-                            _runnningEffects[i] = null;
+                            _runnningEffects.RemoveAt(i);
+                            DestroyImmediate(vfx);
                         }
                     }
                     PlayRemain();
@@ -494,18 +491,18 @@ namespace Assets.Scripts
 #if UNITY_EDITOR
                 SetGameViewMaximized(true);
 #endif
-                Debug.Log("Simulate will be start after 3 seconds...");
+                Debug.Log("Simulate will be start after 2 seconds...");
                 Debug.Log($"Simulate：{effectObj.gameObject.name}");
-                yield return new WaitForSeconds(3.0f);
+                yield return new WaitForSeconds(2.0f);
                 if (counts > 0)
                 {
-                    if (enableCollect)
-                    {
-                        _dataCollecter.BeginCollect(_camera);
-                    }
                     if (_currentEffectobj == null)
                     {
                         _currentEffectobj = effectObj;
+                        if (enableCollect)
+                        {
+                            _dataCollecter.BeginCollect(_camera);
+                        }
                         for (int i = _runningCounts; i < counts; ++i)
                         {
                             GameObject vfx;
@@ -531,7 +528,13 @@ namespace Assets.Scripts
                         isBeginPlay = true;
                     }
                     else
+                    {
+                        if (enableCollect)
+                        {
+                            _dataCollecter.BeginCollect(_camera);
+                        }
                         ChangeVFXCount(counts, effectObj);
+                    }
                 }
                 else if (counts == 0)
                 {
@@ -575,18 +578,18 @@ namespace Assets.Scripts
 #if UNITY_EDITOR
             SetGameViewMaximized(true);
 #endif
-            Debug.Log("Simulate will be start after 3 seconds...");
-            yield return new WaitForSeconds(3.0f);
+            Debug.Log("Simulate will be start after 2 seconds...");
+            yield return new WaitForSeconds(2.0f);
             if (counts > 0)
             {
-                if (enableCollect)
-                {
-                    _dataCollecter.BeginCollect(_camera);
-                }
                 if (_currentEffectobj == null)
                 {
                     if (ChangeCurrentEffect(effectname))
                     {
+                        if (enableCollect)
+                        {
+                            _dataCollecter.BeginCollect(_camera);
+                        }
                         for (int i = _runningCounts; i < counts; ++i)
                         {
                             GameObject vfx;
@@ -623,6 +626,10 @@ namespace Assets.Scripts
                 }
                 else
                 {
+                    if (enableCollect)
+                    {
+                        _dataCollecter.BeginCollect(_camera);
+                    }
                     ChangeVFXCount(counts, FindGameObj(effectname));
                 }
             }
@@ -666,21 +673,21 @@ namespace Assets.Scripts
 #if UNITY_EDITOR
             SetGameViewMaximized(true);
 #endif
-            Debug.Log("Simulate will be start after 3 seconds...");
-            yield return new WaitForSeconds(3.0f);
+            Debug.Log("Simulate will be start after 2 seconds...");
+            yield return new WaitForSeconds(2.0f);
             int counts = 0;
             if (int.TryParse(_count.text, out counts))
             {
                 if (counts > 0)
                 {
-                    if (enableCollect)
-                    {
-                        _dataCollecter.BeginCollect(_camera);
-                    }
                     if (_currentEffectobj == null)
                     {
                         if (ChangeCurrentEffect())
                         {
+                            if (enableCollect)
+                            {
+                                _dataCollecter.BeginCollect(_camera);
+                            }
                             for (int i = _runningCounts; i < counts; ++i)
                             {
                                 GameObject vfx;
@@ -716,6 +723,10 @@ namespace Assets.Scripts
                     }
                     else
                     {
+                        if (enableCollect)
+                        {
+                            _dataCollecter.BeginCollect(_camera);
+                        }
                         ChangeVFXCount(counts, FindGameObj(_effectname.text));
                     }
                 }
@@ -759,19 +770,31 @@ namespace Assets.Scripts
 
         void PlayRemain()
         {
+            List<int> willDeleteparticle = new List<int>();
+            List<int> willDeleteVfx = new List<int>();
             foreach (var particle in _runningParticles.Keys)
             {
                 if (_runningParticles[particle] != null)
                     _runningParticles[particle].Play();
                 else
-                    _runningParticles.Remove(particle);
+                    willDeleteparticle.Add(particle);
             }
             foreach (var vfx in _runningVfx.Keys)
             {
-                if (_runningParticles[vfx] != null)
-                    _runningParticles[vfx].Play();
+                if (_runningVfx[vfx] != null)
+                    _runningVfx[vfx].Play();
                 else
-                    _runningParticles.Remove(vfx);
+                    willDeleteVfx.Add(vfx);
+            }
+            if (willDeleteparticle.Count != 0)
+            {
+                foreach (var item in willDeleteparticle)
+                    _runningParticles.Remove(item);
+            }
+            if (willDeleteVfx.Count != 0)
+            {
+                foreach (var item in willDeleteVfx)
+                    _runningVfx.Remove(item);
             }
         }
 
@@ -877,14 +900,14 @@ namespace Assets.Scripts
             var allvfxs = prefab.GetComponentsInChildren<VisualEffect>();
             foreach (var particle in allparticles)
             {
-                if (!_runningParticles.TryGetValue(particle.GetInstanceID(), out ParticleSystem val))
+                if (!_runningParticles.ContainsKey(particle.GetInstanceID()))
                 {
                     _runningParticles.Add(particle.GetInstanceID(), particle);
                 }
             }
             foreach (var vfx in allvfxs)
             {
-                if (!_runningVfx.TryGetValue(vfx.GetInstanceID(), out VisualEffect val))
+                if (!_runningVfx.ContainsKey(vfx.GetInstanceID()))
                 {
                     _runningVfx.Add(vfx.GetInstanceID(), vfx);
                 }
@@ -899,14 +922,14 @@ namespace Assets.Scripts
                 var allvfxs = effect.GetComponentsInChildren<VisualEffect>();
                 foreach (var particle in allparticles)
                 {
-                    if (!_runningParticles.TryGetValue(particle.GetInstanceID(), out ParticleSystem val))
+                    if (!_runningParticles.ContainsKey(particle.GetInstanceID()))
                     {
                         _runningParticles.Add(particle.GetInstanceID(), particle);
                     }
                 }
                 foreach (var vfx in allvfxs)
                 {
-                    if (!_runningVfx.TryGetValue(vfx.GetInstanceID(), out VisualEffect val))
+                    if (!_runningVfx.ContainsKey(vfx.GetInstanceID()))
                     {
                         _runningVfx.Add(vfx.GetInstanceID(), vfx);
                     }
@@ -916,13 +939,13 @@ namespace Assets.Scripts
 
         public void ClearCache()
         {
-            for (int i = 0; i < _runnningEffects.Count; ++i)
+            for (int i = _runnningEffects.Count - 1; i >= 0; --i)  //从后往前清除
             {
                 var vfx = _runnningEffects[i];
                 if (vfx)
                 {
-                    Destroy(vfx);
-                    _runnningEffects[i] = null;
+                    DestroyImmediate(vfx);
+                    _runnningEffects.RemoveAt(i);
                 }
             }
             _runningParticles.Clear();

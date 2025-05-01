@@ -49,6 +49,33 @@ namespace Mator
                     var fpseSet = FindObjectOfType<Assets.Scripts.FPSCounter>();
                     fpseSet.StopFps();
                 }
+                else if (command == "SetRunningTime")
+                {
+                    var mainControllerObj = FindObjectOfType<Assets.Scripts.MainController>();
+                    if (int.TryParse(args[2], out int val))
+                    {
+                        mainControllerObj.effectRunTime = int.Parse(args[2]);
+                    }
+                }
+                else if (command == "PlayEndData")
+                {
+                    var dataControllerObj = FindObjectOfType<Assets.Scripts.DataCollecter>();
+                    if (bool.TryParse(args[2], out bool val))
+                    {
+                        dataControllerObj.isAutoEnd = val;
+                        dataControllerObj.TryEndOutPut();
+                        return "成功结束数据输出";
+                    }
+                }
+                else if (command == "AutoEffectProfiler")
+                {
+                    if (args[2] != "")
+                    {
+                        int count = int.Parse(args[2]);
+                        var ulodSwitch = FindObjectOfType<Assets.Scripts.MainController>();
+                        ulodSwitch.AutoRun(count);
+                    }
+                }
                 else if(command == "PlayEffect")
                 {
                     var ulodSwitch = FindObjectOfType<Assets.Scripts.MainController>();
@@ -65,6 +92,37 @@ namespace Mator
                         count.text = args[2];
                     }
                     ulodSwitch.Play();
+                }
+                else if (command == "SetEffectLoop")
+                {
+                    var mainControllerObj = FindObjectOfType<Assets.Scripts.MainController>();
+                    if (mainControllerObj != null)
+                    {
+                        if (bool.TryParse(args[2], out bool val))
+                        {
+                            mainControllerObj.loop = val;
+                        }
+                    }
+                }
+                else if (command == "EnableSample")
+                {
+                    var mainControllerObj = FindObjectOfType<Assets.Scripts.MainController>();
+                    if (mainControllerObj != null)
+                    {
+                        if (bool.TryParse(args[2], out bool val))
+                        {
+                            mainControllerObj.enableCollect = val;
+                        }
+                    }
+                }
+                else if (command == "SetStoringData")
+                {
+                    var dataControllerObj = FindObjectOfType<Assets.Scripts.DataCollecter>();
+                    if (bool.TryParse(args[2], out bool val))
+                    {
+                        dataControllerObj._segmentStoring = val;
+                        return "成功开启数据缓存模式";
+                    }
                 }
                 else if (command == "TimeFrame")
                 {
