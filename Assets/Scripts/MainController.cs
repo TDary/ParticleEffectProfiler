@@ -54,6 +54,7 @@ namespace Assets.Scripts
             _dataCollecter = GameObject.Find("EffectsProfiler").GetComponent<DataCollecter>();
             _moveRange = new Bounds(simulateRange.center, simulateRange.size);
             _moveTargetPos = simulateRange.center;
+            Application.runInBackground = true;  // 设置为失焦后台仍继续运行
         }
 
         // Update is called once per frame
