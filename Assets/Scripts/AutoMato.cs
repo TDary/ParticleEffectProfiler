@@ -1,6 +1,12 @@
 ﻿using UnityEngine;
 using Matory;
 using System;
+using Assets.Scripts;
+using System.IO;
+using Unity.Collections.LowLevel.Unsafe;
+using Unity.Collections;
+using System.Collections;
+using UnityEngine.Profiling;
 
 namespace Mator
 {
@@ -9,6 +15,9 @@ namespace Mator
         // Start is called before the first frame update
         static Mato runner = null;
         private bool swich = false;
+        bool Snapcapture = false;
+        double memoryMaxValue = 0;
+        string memorySnapPath = string.Empty;
         void Awake()
         {
             if (runner == null)
@@ -104,6 +113,31 @@ namespace Mator
                         }
                     }
                 }
+                else if(command == "SetMaxMemory")
+                {
+                    if (double.TryParse(args[1], out double val))
+                        memoryMaxValue = val;
+                    else
+                        return "传入参数不正确,请传入Double类型";
+                }
+                else if(command == "SetSnapPath")
+                {
+                    memorySnapPath = args[1];
+                }
+                else if(command == "GetCurrentSnapPath")
+                {
+                    return memorySnapPath;
+                }
+#if DEBUG
+                else if (command == "StartMonitor")
+                {
+                    StartCoroutine(MonitorLogic());
+                }
+#endif
+                else if(command == "TestPrintPath")
+                {
+                    Debug.Log(Path.Combine(Application.persistentDataPath, DateTimeOffset.Now.ToUnixTimeSeconds().ToString()));
+                }
                 else if (command == "EnableSample")
                 {
                     var mainControllerObj = FindObjectOfType<Assets.Scripts.MainController>();
@@ -134,6 +168,68 @@ namespace Mator
             {
                 return e.ToString();
             }
+        }
+
+        double GetCurrentMemory()
+        {
+            long memory = Profiler.GetTotalReservedMemoryLong() + Profiler.GetMonoUsedSizeLong();
+            double currentMem = memory / (1024.0 * 1024.0);
+            Debug.Log("当前内存占用：" + currentMem);
+            return currentMem;  // MB
+        }
+
+        IEnumerator MonitorLogic()
+        {
+            if (memoryMaxValue == 0)
+                yield return null;
+            WaitForSeconds waitSecond = new WaitForSeconds(1f);
+            Debug.Log("开始进行内存监控——");
+            while (true)
+            {
+                if (GetCurrentMemory() >= memoryMaxValue)
+                {
+                    if (string.IsNullOrEmpty(memorySnapPath))
+                        memorySnapPath = Path.Combine(Application.persistentDataPath, DateTimeOffset.Now.ToUnixTimeSeconds().ToString(), ".snap");
+                    TakeMemoryProfileSnapshot(memorySnapPath);
+                    break;
+                }
+                yield return waitSecond;  // 每秒执行一次
+            }
+        }
+
+        private void MemoryCaptureCallback(string path, bool result)
+        {
+            Debug.Log("Take snap success.");
+        }
+        private void CopyDataToTexture(Texture2D tex, NativeArray<byte> byteArray)
+        {
+            unsafe
+            {
+                void* srcPtr = NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(byteArray);
+                void* dstPtr = tex.GetRawTextureData<byte>().GetUnsafeReadOnlyPtr();
+                UnsafeUtility.MemCpy(dstPtr, srcPtr, byteArray.Length * sizeof(byte));
+            }
+        }
+        private void MemoryCaptureScreen(string path, bool result, Unity.Profiling.DebugScreenCapture screenCapture)
+        {
+            Texture2D tex = new Texture2D(screenCapture.Width, screenCapture.Height, screenCapture.ImageFormat, false);
+            CopyDataToTexture(tex, screenCapture.RawImageDataReference);
+            string screensavePath = Path.ChangeExtension(path, ".png");
+            File.WriteAllBytes(screensavePath, tex.EncodeToPNG());
+            tex.SafeDestroy();
+
+            Debug.Log($"save screenshot to {screensavePath} success!");
+            Snapcapture = result;
+        }
+        private void TakeMemoryProfileSnapshot(string snapFilePath)
+        {
+            Snapcapture = false;
+            Unity.Profiling.Memory.MemoryProfiler.TakeSnapshot(snapFilePath, MemoryCaptureCallback, MemoryCaptureScreen,
+                Unity.Profiling.Memory.CaptureFlags.ManagedObjects
+                | Unity.Profiling.Memory.CaptureFlags.NativeObjects
+                | Unity.Profiling.Memory.CaptureFlags.NativeAllocations
+                | Unity.Profiling.Memory.CaptureFlags.NativeAllocationSites
+                | Unity.Profiling.Memory.CaptureFlags.NativeStackTraces);
         }
     }
 }
